@@ -1,66 +1,94 @@
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 
 public class SceneManager : MonoBehaviour
 {
     public static SceneManager Instance { get; private set; }
 
-    private readonly List<ArrowScript> arrows = new List<ArrowScript>();
+    [Header("Spawners")]
+    [SerializeField] private ArrowSpawner arrowSpawner;
 
-    [SerializeField] ArrowSpawner arrowSpawner;
+    [Header("Scene Data Library")]
+    [SerializeField] private List<SceneData> scenes = new List<SceneData>();
+
+    private readonly List<ArrowScript> arrows = new List<ArrowScript>();
+    private int currentSceneId = -1;
 
     private void Awake()
     {
         if (Instance != null && Instance != this)
         {
             Destroy(gameObject);
-            return;                                                                        // Alles nur provisorisch, sodass nichts schiefgeht
+            return;
         }
 
         Instance = this;
-
         DontDestroyOnLoad(gameObject);
     }
 
-    public void Start()
+    private void Start()
     {
-        arrowSpawner.createArrow(1f, 2f, 45f, 1);
-        arrowSpawner.createArrow(-1f, -1f, 25f, 2);
+        ChangeScene(0);                                                                          //Ich starte einfach mal in scene 0
     }
-
 
     public void RegisterArrow(ArrowScript arrow)
     {
-        if (arrow == null) return;
-
-        if (!arrows.Contains(arrow))                                                       // Der Arrow wird aufgenommen in meiner Liste
+        if (arrow != null && !arrows.Contains(arrow))
             arrows.Add(arrow);
     }
 
     public void UnregisterArrow(ArrowScript arrow)
     {
-        if (arrow == null) return;                                                         // Löscht den arrow aus der liste upon destruction
-        arrows.Remove(arrow);
-    }
-
-    public int GetArrowID(ArrowScript arrow)
-    {
-        return arrow.gameObject.GetInstanceID();                                           // Das gibt mir die ID des arrows (um sie zu unterscheiden)
+        if (arrow != null)
+            arrows.Remove(arrow);
     }
 
     public void ChangeScene(int sc)
     {
-        foreach (ArrowScript arrow in arrows)
+        
+        for (int i = 0; i < arrows.Count; i++)
+        {                                                                                        //Clear arrows
+            if (arrows[i] != null)
+                Destroy(arrows[i].gameObject);
+        }
+        arrows.Clear();
+
+        
+        SceneData data = GetSceneData(sc);                                                      //get data
+        if (data == null)
         {
-            if (arrow != null)                                                             // Zerstört alle Arrows
-                Destroy(arrow.gameObject);
+            Debug.LogError($"No SceneData found for sceneId={sc}. Create one and add it to SceneManager.scenes.");
+            return;
         }
 
-        arrows.Clear();                                                                    // Löscht alle aus liste
+        currentSceneId = sc;
 
-        UnityEngine.SceneManagement.SceneManager.LoadScene(sc);                            // Lädt dann theoretisch die scene (kommt noch)
-        Debug.Log("Scene die du abrufst: " + sc);
+        
+        if (arrowSpawner == null)
+        {
+            Debug.LogError("ArrowSpawner not assigned in SceneManager.");
+            return;
+        }
+
+        foreach (var a in data.arrows)                                                        //spawn the arrows
+        {
+            arrowSpawner.createArrow(a.position.x, a.position.y, a.rotationDegrees, a.sceneToCall);
+        }
+
+        
+        // SpawnChests(data.chests);
+        // SpawnDoors(data.doors);
+
+        Debug.Log($"Loaded scene data: {data.displayName} (id={data.sceneId})");
     }
 
+    private SceneData GetSceneData(int id)
+    {
+        for (int i = 0; i < scenes.Count; i++)
+        {
+            if (scenes[i] != null && scenes[i].sceneId == id)
+                return scenes[i];
+        }
+        return null;
+    }
 }
